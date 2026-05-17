@@ -1,0 +1,48 @@
+{
+  "summary": "First end-to-end test of Slidevault (training-slides app). 28/29 backend pytest tests passed (1 failure = real bug in folder delete cross-user authorization). Critical frontend flows all PASS via Playwright: login -> dashboard with 5 category cards -> navigate to ESG -> create folder -> add link (auto-preview 'Example Domain') -> create note (navigates to editor) -> sidebar global search returns folder -> logout to /login.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "DELETE /api/folders/{id}",
+        "issue": "Authorization bypass info-leak: when User B issues DELETE on a folder owned by User A, the endpoint returns 200 with {'deleted': [folder_id]} instead of 404. Root cause in server.py delete_folder(): collect_descendants() does acc.add(fid) unconditionally before verifying ownership. The actual delete_many is filtered by owner_id so no data is destroyed, but the 200 response leaks ID existence and contradicts per-user isolation contract. Fix: verify the root folder exists for this owner before recursing (e.g., await db.folders.find_one({'id': folder_id, 'owner_id': user['id']}) -> 404 if None)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix DELETE /api/folders/{id} to return 404 when the requested folder does not exist for the current user (verify ownership at the root before collecting descendants)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~610 lines; still single-file. Consider splitting auth/folders/items/upload/search into routers as the app grows.",
+    "CORS allow_origins=['*'] combined with allow_credentials=True is unsafe and rejected by browsers in some setups; for production set explicit origins.",
+    "Cookies: secure=False - acceptable for preview/HTTP but must be True in production HTTPS.",
+    "delete_folder uses unbounded recursion (collect_descendants). For deeply nested trees this could hit Python recursion limits; iterative BFS is safer.",
+    "upload_file reads entire file into memory (await file.read()) before the 50MB check - reject early via Content-Length header to avoid memory blowups on malicious large uploads.",
+    "GET /api/items returns blocks in list view (only the comment says it shouldn't); blocks are not projected out, so list responses can be heavy. Add projection {'blocks': 0, 'search_text': 0} for list endpoint."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/__init__.py"
+  ],
+  "success_rate": {"backend": "96.5% (28/29)", "frontend": "100% of tested critical flows"},
+  "test_credentials": "admin@example.com / admin123 (seeded). Verified working.",
+  "seed_data_creation": "Test run creates TEST_ prefixed folders/notes; deletions executed inline as cleanup. A few residual items may remain in the DB owned by the admin and the ephemeral second user.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest at /app/backend/tests/backend_test.py covers auth, categories, folders (incl. isolation), items/notes, links with real preview fetch, upload/download (real Emergent object storage), search, and unauthorized guards. Run: pytest backend/tests/backend_test.py -v --junitxml=/app/test_reports/pytest/pytest_results.xml. Known failure: test_folder_isolation - delete_folder owner check bug. Frontend Playwright flow tested through Slidevault UI; all data-testid selectors used in this report are present and stable. Note editor deep block-by-block testing and PDF upload-then-view-in-FileViewerPage were NOT exercised through UI - main agent or next tester may want to cover those.",
+  "rca of the issue": {
+    "bug": "Cross-user authorization leak in folder delete",
+    "reproduction": "1) Login as user A; POST /api/folders {name: 'X', category: 'claude-chat'} -> get id F. 2) Login as user B (different user). 3) DELETE /api/folders/F as user B -> receives 200 {'deleted': ['F']}, expected 404.",
+    "root_cause": "server.py delete_folder() seeds the to_delete set with the requested folder_id without checking ownership: 'async def collect_descendants(fid, acc): acc.add(fid); ...'. Therefore to_delete is never empty and the 404 branch is unreachable for non-owners. The downstream delete_many is correctly owner-scoped so no data is deleted, but the success response leaks the folder's existence.",
+    "mitigation": "Before recursing, do: parent = await db.folders.find_one({'id': folder_id, 'owner_id': user['id']}, {'_id': 0}); if not parent: raise HTTPException(404, 'Folder not found'). Then proceed with descendant collection."
+  }
+}
