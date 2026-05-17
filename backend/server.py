@@ -26,7 +26,6 @@ from auth import (
     set_auth_cookies,
     clear_auth_cookies,
     decode_token,
-    extract_token_from_request,
     get_current_user as auth_get_current_user,
 )
 from storage import init_storage, put_object, get_object
@@ -227,27 +226,30 @@ async def startup():
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
 
-    # Seed admin
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
-    existing = await db.users.find_one({"email": admin_email})
-    if existing is None:
-        admin_id = str(uuid.uuid4())
-        await db.users.insert_one({
-            "id": admin_id,
-            "email": admin_email,
-            "password_hash": hash_password(admin_password),
-            "name": "Admin",
-            "role": "admin",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
-        await ensure_personal_workspace(admin_id, admin_email)
-        logger.info(f"Seeded admin: {admin_email}")
-    elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one(
-            {"email": admin_email},
-            {"$set": {"password_hash": hash_password(admin_password)}}
-        )
+    # Seed admin: only if BOTH ADMIN_EMAIL and ADMIN_PASSWORD are explicitly set,
+    # and only when no admin with that email exists yet. We never reset the password
+    # on subsequent startups — that would be a permanent backdoor for anyone who
+    # knows the env value.
+    admin_email = os.environ.get("ADMIN_EMAIL")
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    if admin_email and admin_password:
+        existing = await db.users.find_one({"email": admin_email})
+        if existing is None:
+            admin_id = str(uuid.uuid4())
+            await db.users.insert_one({
+                "id": admin_id,
+                "email": admin_email,
+                "password_hash": hash_password(admin_password),
+                "name": "Admin",
+                "role": "admin",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            await ensure_personal_workspace(admin_id, admin_email)
+            logger.info(f"Seeded admin: {admin_email}")
+        else:
+            logger.info(f"Admin {admin_email} already exists; not modifying password")
+    else:
+        logger.info("ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping admin seed")
 
     # Migration: backfill workspace_id on legacy folders/items
     async for user in db.users.find({}, {"_id": 0, "id": 1, "email": 1}):
@@ -795,22 +797,14 @@ async def upload_file(
 
 
 @api_router.get("/files/{item_id}/download")
-async def download_file(item_id: str, request: Request, auth: Optional[str] = Query(None)):
-    token = extract_token_from_request(request) or auth
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        payload = decode_token(token)
-        if payload.get("type") != "access":
-            raise HTTPException(status_code=401, detail="Invalid token")
-        user_id = payload["sub"]
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+async def download_file(item_id: str, user: dict = Depends(get_current_user)):
+    # Authenticated via httpOnly cookie or Authorization header. We deliberately
+    # do NOT accept a token via query string — tokens in URLs leak to access logs,
+    # browser history, and Referer headers.
     item = await db.items.find_one({"id": item_id, "type": "file", "is_deleted": {"$ne": True}})
     if not item:
         raise HTTPException(status_code=404, detail="File not found")
-    # Membership check
-    member = await get_membership(item["workspace_id"], user_id)
+    member = await get_membership(item["workspace_id"], user["id"])
     if not member:
         raise HTTPException(status_code=403, detail="Not a member of this workspace")
     data, _ = get_object(item["storage_path"])
@@ -1089,13 +1083,23 @@ async def search(q: str = Query(...), user: dict = Depends(get_current_user)):
 
 
 # ============== Mount ==============
-app.include_router(api_router)
+# CORS must be added before include_router so the middleware wraps the routes.
+# Origins come from the CORS_ORIGINS env var (comma-separated). Defaults to
+# localhost:3000 so the dev server works out of the box; production must set
+# this to the real frontend origin(s). Never use "*" with credentials — browsers
+# block that combination and it disables CSRF protection for cookie auth.
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
+CORS_ORIGINS = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+if "*" in CORS_ORIGINS:
+    raise RuntimeError("CORS_ORIGINS must not contain '*' when cookie auth is in use")
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+app.include_router(api_router)

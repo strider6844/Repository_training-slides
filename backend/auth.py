@@ -43,12 +43,18 @@ def create_refresh_token(user_id: str) -> str:
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
+def _cookie_secure() -> bool:
+    # Secure by default; opt out only for local HTTP development.
+    return os.environ.get("COOKIE_SECURE", "true").lower() not in ("false", "0", "no")
+
+
 def set_auth_cookies(response, access_token: str, refresh_token: str):
+    secure = _cookie_secure()
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
+        secure=secure,
         samesite="lax",
         max_age=ACCESS_TOKEN_MINUTES * 60,
         path="/",
@@ -57,7 +63,7 @@ def set_auth_cookies(response, access_token: str, refresh_token: str):
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
+        secure=secure,
         samesite="lax",
         max_age=REFRESH_TOKEN_DAYS * 86400,
         path="/",
