@@ -38,6 +38,7 @@ Must allow adding folders Notion-style (nested), accept PDF/Word/PPT/web links, 
 - Drag-and-drop multi-file upload zone
 - Breadcrumb navigation + nested sidebar tree (iterative flattened render to avoid babel-plugin recursion crash)
 - File viewer (PDF inline iframe; Office files prompt download)
+- **AI deck summaries** (Claude Sonnet 4.5 via EMERGENT_LLM_KEY) — extracts text from PDF/DOCX/PPTX, generates structured Markdown summary (TL;DR / Key Topics / Main Takeaways / Glossary), result cached on item + regenerate option
 - Shadcn Dialog/AlertDialog/DropdownMenu used throughout
 
 ## Test credentials

@@ -30,6 +30,7 @@ from auth import (
 )
 from storage import init_storage, put_object, get_object
 from link_preview import fetch_link_preview
+from extract_text import extract_text
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -412,6 +413,87 @@ async def delete_item(item_id: str, user: dict = Depends(get_current_user)):
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Item not found")
     return {"deleted": item_id}
+
+
+@api_router.post("/items/{item_id}/summarize")
+async def summarize_item(item_id: str, user: dict = Depends(get_current_user)):
+    item = await db.items.find_one(
+        {"id": item_id, "owner_id": user["id"], "type": "file", "is_deleted": {"$ne": True}},
+        {"_id": 0},
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # If we already have a summary, just return it (cheap re-fetch)
+    if item.get("ai_summary"):
+        return {"summary": item["ai_summary"], "cached": True}
+
+    # Fetch bytes from storage and extract text
+    try:
+        data, _ = get_object(item["storage_path"])
+    except Exception as e:
+        logger.error(f"Storage fetch failed: {e}")
+        raise HTTPException(status_code=500, detail="Could not read file from storage")
+
+    text = extract_text(data, item.get("ext", ""))
+    if not text or len(text.strip()) < 20:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No extractable text in this {item.get('ext','file').upper()}. Summaries work best with PDF/DOCX/PPTX containing real text (not scanned images).",
+        )
+    # Cap to ~40k chars (~10k tokens) — Sonnet handles much more but no point sending the whole novel
+    text = text[:40000]
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception as e:
+        logger.error(f"emergentintegrations import failed: {e}")
+        raise HTTPException(status_code=500, detail="LLM library not available")
+
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="LLM key not configured")
+
+    system = (
+        "You are a senior training-content analyst. Summarise the provided slide deck / "
+        "training document. Produce concise, structured Markdown with the following sections:\n"
+        "## TL;DR\n(2–3 sentences)\n\n"
+        "## Key Topics\n(bulleted list, max 8)\n\n"
+        "## Main Takeaways\n(numbered list, 3–6 items, action-oriented)\n\n"
+        "## Glossary\n(only if domain-specific terms appear; otherwise omit)\n\n"
+        "Be precise. Do not invent facts. Quote sparingly."
+    )
+    try:
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"summary-{item_id}",
+            system_message=system,
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        msg = UserMessage(
+            text=f"Title: {item.get('title')}\nFilename: {item.get('original_filename')}\n\n--- Document text ---\n{text}"
+        )
+        summary = await chat.send_message(msg)
+    except Exception as e:
+        logger.error(f"LLM call failed: {e}")
+        raise HTTPException(status_code=500, detail="AI summary failed. Please try again.")
+
+    summary = (summary or "").strip()
+    await db.items.update_one(
+        {"id": item_id, "owner_id": user["id"]},
+        {"$set": {"ai_summary": summary, "summarized_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"summary": summary, "cached": False}
+
+
+@api_router.delete("/items/{item_id}/summary")
+async def clear_summary(item_id: str, user: dict = Depends(get_current_user)):
+    res = await db.items.update_one(
+        {"id": item_id, "owner_id": user["id"]},
+        {"$unset": {"ai_summary": "", "summarized_at": ""}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"cleared": True}
 
 
 def _blocks_to_text(blocks: list) -> str:
