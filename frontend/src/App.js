@@ -1,5 +1,6 @@
 import { Routes, Route, BrowserRouter, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { WorkspaceProvider } from "./context/WorkspaceContext";
 import { Toaster } from "./components/ui/sonner";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -8,6 +9,8 @@ import CategoryPage from "./pages/CategoryPage";
 import NoteEditorPage from "./pages/NoteEditorPage";
 import FileViewerPage from "./pages/FileViewerPage";
 import SearchPage from "./pages/SearchPage";
+import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
+import PublicItemPage from "./pages/PublicItemPage";
 import AppShell from "./components/layout/AppShell";
 import "./App.css";
 
@@ -41,49 +44,56 @@ function App() {
     <div className="App">
       <BrowserRouter>
         <AuthProvider>
-          <Toaster richColors position="bottom-right" />
-          <Routes>
-            <Route
-              path="/login"
-              element={
-                <PublicOnly>
-                  <LoginPage />
-                </PublicOnly>
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                <PublicOnly>
-                  <RegisterPage />
-                </PublicOnly>
-              }
-            />
-            <Route
-              element={
-                <ProtectedRoute>
-                  <AppShell />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/c/:categoryId" element={<CategoryPage />} />
+          <WorkspaceProvider>
+            <Toaster richColors position="bottom-right" />
+            <Routes>
+              <Route path="/s/:slug" element={<PublicItemPage />} />
               <Route
-                path="/c/:categoryId/folder/:folderId"
-                element={<CategoryPage />}
+                path="/login"
+                element={
+                  <PublicOnly>
+                    <LoginPage />
+                  </PublicOnly>
+                }
               />
               <Route
-                path="/c/:categoryId/note/:itemId"
-                element={<NoteEditorPage />}
+                path="/register"
+                element={
+                  <PublicOnly>
+                    <RegisterPage />
+                  </PublicOnly>
+                }
               />
               <Route
-                path="/c/:categoryId/file/:itemId"
-                element={<FileViewerPage />}
-              />
-              <Route path="/search" element={<SearchPage />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+                element={
+                  <ProtectedRoute>
+                    <AppShell />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/c/:categoryId" element={<CategoryPage />} />
+                <Route
+                  path="/c/:categoryId/folder/:folderId"
+                  element={<CategoryPage />}
+                />
+                <Route
+                  path="/c/:categoryId/note/:itemId"
+                  element={<NoteEditorPage />}
+                />
+                <Route
+                  path="/c/:categoryId/file/:itemId"
+                  element={<FileViewerPage />}
+                />
+                <Route path="/search" element={<SearchPage />} />
+                <Route
+                  path="/workspace/:workspaceId/settings"
+                  element={<WorkspaceSettingsPage />}
+                />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </WorkspaceProvider>
         </AuthProvider>
       </BrowserRouter>
     </div>

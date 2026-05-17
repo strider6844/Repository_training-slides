@@ -20,6 +20,7 @@ import {
   GripVertical,
   Plus,
   Link as LinkIcon,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -28,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
+import ShareDialog from "../components/ShareDialog";
 
 const BLOCK_TYPES = [
   { type: "paragraph", label: "Text", icon: Type, placeholder: "Type something…" },
@@ -70,6 +72,7 @@ export default function NoteEditorPage() {
   const [title, setTitle] = useState("");
   const [blocks, setBlocks] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const debounceRef = useRef(null);
   const initialLoad = useRef(true);
 
@@ -179,8 +182,22 @@ export default function NoteEditorPage() {
         >
           <ChevronLeft size={14} /> Back to {category?.short}
         </Link>
-        <div className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400">
-          {saving ? "Saving…" : "Saved"}
+        <div className="flex items-center gap-3">
+          {note.share_enabled && (
+            <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em]">
+              Shared
+            </span>
+          )}
+          <button
+            onClick={() => setShareOpen(true)}
+            className="text-sm flex items-center gap-1 text-neutral-500 hover:text-[#0A0A0A]"
+            data-testid="note-share-button"
+          >
+            <Share2 size={14} /> Share
+          </button>
+          <div className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400">
+            {saving ? "Saving…" : "Saved"}
+          </div>
         </div>
       </div>
 
@@ -214,6 +231,14 @@ export default function NoteEditorPage() {
           <Plus size={14} /> Add block
         </button>
       </div>
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        itemId={itemId}
+        initialSlug={note.share_slug}
+        initialEnabled={note.share_enabled}
+      />
     </div>
   );
 }

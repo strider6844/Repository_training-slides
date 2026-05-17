@@ -1,13 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useWorkspace } from "../../context/WorkspaceContext";
 import { CATEGORIES } from "../../lib/categories";
 import api from "../../lib/api";
 import { Library, LogOut, Search, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import FolderTree from "./FolderTreeItem";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
 
 function CategorySection({ category, currentCategoryId, currentFolderId }) {
+  const { currentId } = useWorkspace();
   const [folders, setFolders] = useState([]);
   const [open, setOpen] = useState(currentCategoryId === category.id);
 
@@ -25,9 +28,19 @@ function CategorySection({ category, currentCategoryId, currentFolderId }) {
     const handler = (e) => {
       if (!e.detail?.category || e.detail.category === category.id) load();
     };
+    const wsHandler = () => load();
     window.addEventListener("folders-changed", handler);
-    return () => window.removeEventListener("folders-changed", handler);
+    window.addEventListener("workspace-changed", wsHandler);
+    return () => {
+      window.removeEventListener("folders-changed", handler);
+      window.removeEventListener("workspace-changed", wsHandler);
+    };
   }, [load, category.id]);
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId]);
 
   useEffect(() => {
     if (currentCategoryId === category.id) setOpen(true);
@@ -103,11 +116,12 @@ export default function AppShell() {
         className="w-72 flex-shrink-0 border-r border-neutral-200 h-screen sticky top-0 overflow-y-auto bg-[#FAFAFA] flex flex-col"
         data-testid="app-sidebar"
       >
-        <div className="px-5 pt-6 pb-4 border-b border-neutral-200">
-          <Link to="/" data-testid="sidebar-logo-link" className="flex items-center gap-2 mb-5">
+        <div className="px-5 pt-6 pb-4 border-b border-neutral-200 space-y-3">
+          <Link to="/" data-testid="sidebar-logo-link" className="flex items-center gap-2">
             <Library size={20} strokeWidth={1.5} />
             <span className="font-display font-black text-lg tracking-tighter">Slidevault</span>
           </Link>
+          <WorkspaceSwitcher />
           <form onSubmit={submitSearch} data-testid="sidebar-search-form">
             <div className="flex items-center gap-2 border border-neutral-200 bg-white px-3 py-2 focus-within:border-[#0A0A0A] transition-colors">
               <Search size={14} className="text-neutral-400" />

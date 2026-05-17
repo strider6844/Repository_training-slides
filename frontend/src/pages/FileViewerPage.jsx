@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import api, { formatApiError } from "../lib/api";
 import { CATEGORY_BY_ID, FILE_EXT_LABEL } from "../lib/categories";
-import { ChevronLeft, Download, Sparkles, RotateCw, X } from "lucide-react";
+import { ChevronLeft, Download, Sparkles, RotateCw, X, MessageSquare, Share2 } from "lucide-react";
 import { toast } from "sonner";
+import ShareDialog from "../components/ShareDialog";
+import DeckChat from "../components/DeckChat";
 
 function renderMarkdown(md) {
   if (!md) return null;
-  // Lightweight MD: headings, bullets, numbered, bold
   const lines = md.split("\n");
   const out = [];
   let listBuf = null;
@@ -88,9 +89,10 @@ export default function FileViewerPage() {
   const category = CATEGORY_BY_ID[categoryId];
   const [item, setItem] = useState(null);
   const [blobUrl, setBlobUrl] = useState(null);
-  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState(null); // null | "summary" | "chat"
   const [summary, setSummary] = useState(null);
   const [summarizing, setSummarizing] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     let revoke;
@@ -116,7 +118,7 @@ export default function FileViewerPage() {
 
   const summarize = async (force = false) => {
     setSummarizing(true);
-    setSummaryOpen(true);
+    setPanelTab("summary");
     try {
       if (force) {
         await api.delete(`/items/${itemId}/summary`);
@@ -127,9 +129,17 @@ export default function FileViewerPage() {
       if (!data.cached) toast.success("Summary generated");
     } catch (err) {
       toast.error(formatApiError(err));
-      if (!summary) setSummaryOpen(false);
+      if (!summary) setPanelTab(null);
     } finally {
       setSummarizing(false);
+    }
+  };
+
+  const openSummary = () => {
+    if (summary) {
+      setPanelTab("summary");
+    } else {
+      summarize(false);
     }
   };
 
@@ -138,10 +148,11 @@ export default function FileViewerPage() {
   }
 
   const isPdf = item.ext === "pdf";
+  const panelOpen = panelTab !== null;
 
   return (
     <div className="page-fade-in pt-8 pb-12 px-6 md:px-12 max-w-7xl mx-auto" data-testid="file-viewer-page">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
         <Link
           to={
             item.folder_id
@@ -153,25 +164,43 @@ export default function FileViewerPage() {
         >
           <ChevronLeft size={14} /> Back to {category?.short}
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => summarize(false)}
+            onClick={openSummary}
             disabled={summarizing}
-            className="bg-white border border-[#0A0A0A] text-[#0A0A0A] px-4 py-2 text-sm flex items-center gap-2 hover:bg-neutral-50 disabled:opacity-50"
+            className={`border px-3 py-2 text-sm flex items-center gap-2 disabled:opacity-50 ${
+              panelTab === "summary"
+                ? "bg-[#0A0A0A] text-white border-[#0A0A0A]"
+                : "bg-white border-neutral-300 hover:bg-neutral-50"
+            }`}
             data-testid="file-summarize-button"
           >
             <Sparkles size={14} />{" "}
-            {summarizing
-              ? "Summarising…"
-              : summary
-                ? "View AI Summary"
-                : "AI Summary"}
+            {summarizing ? "Summarising…" : "AI Summary"}
+          </button>
+          <button
+            onClick={() => setPanelTab("chat")}
+            className={`border px-3 py-2 text-sm flex items-center gap-2 ${
+              panelTab === "chat"
+                ? "bg-[#0A0A0A] text-white border-[#0A0A0A]"
+                : "bg-white border-neutral-300 hover:bg-neutral-50"
+            }`}
+            data-testid="file-chat-button"
+          >
+            <MessageSquare size={14} /> Ask this deck
+          </button>
+          <button
+            onClick={() => setShareOpen(true)}
+            className="bg-white border border-neutral-300 px-3 py-2 text-sm flex items-center gap-2 hover:bg-neutral-50"
+            data-testid="file-share-button"
+          >
+            <Share2 size={14} /> Share
           </button>
           {blobUrl && (
             <a
               href={blobUrl}
               download={item.original_filename}
-              className="bg-[#0A0A0A] text-white px-4 py-2 text-sm flex items-center gap-2 hover:bg-neutral-800"
+              className="bg-[#0A0A0A] text-white px-3 py-2 text-sm flex items-center gap-2 hover:bg-neutral-800"
               data-testid="file-download-button"
             >
               <Download size={14} /> Download
@@ -190,11 +219,16 @@ export default function FileViewerPage() {
         <div className="text-sm text-neutral-500 mt-2">
           {item.original_filename} · uploaded{" "}
           {new Date(item.created_at).toLocaleDateString()}
+          {item.share_enabled && (
+            <span className="ml-2 text-emerald-700 bg-emerald-50 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em]">
+              Shared
+            </span>
+          )}
         </div>
       </div>
 
       <div
-        className={`grid gap-6 ${summaryOpen ? "lg:grid-cols-[1fr_22rem]" : "grid-cols-1"}`}
+        className={`grid gap-6 ${panelOpen ? "lg:grid-cols-[1fr_24rem]" : "grid-cols-1"}`}
       >
         <div className="border border-neutral-200 bg-neutral-50 overflow-hidden" style={{ height: "75vh" }}>
           {!blobUrl ? (
@@ -231,24 +265,42 @@ export default function FileViewerPage() {
           )}
         </div>
 
-        {summaryOpen && (
+        {panelOpen && (
           <aside
             className="border border-neutral-200 bg-white overflow-hidden flex flex-col"
-            style={{ maxHeight: "75vh" }}
-            data-testid="ai-summary-panel"
+            style={{ height: "75vh" }}
+            data-testid="ai-panel"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 bg-[#0A0A0A] text-white">
-              <div className="flex items-center gap-2">
-                <Sparkles size={14} />
-                <span className="text-xs font-mono uppercase tracking-[0.2em]">
-                  AI Summary
-                </span>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-200 bg-[#0A0A0A] text-white">
+              <div className="flex items-stretch">
+                <button
+                  onClick={() => setPanelTab("summary")}
+                  className={`px-3 py-1 text-xs font-mono uppercase tracking-[0.2em] ${
+                    panelTab === "summary"
+                      ? "text-white"
+                      : "text-neutral-400 hover:text-white"
+                  }`}
+                  data-testid="panel-tab-summary"
+                >
+                  Summary
+                </button>
+                <button
+                  onClick={() => setPanelTab("chat")}
+                  className={`px-3 py-1 text-xs font-mono uppercase tracking-[0.2em] ${
+                    panelTab === "chat"
+                      ? "text-white"
+                      : "text-neutral-400 hover:text-white"
+                  }`}
+                  data-testid="panel-tab-chat"
+                >
+                  Chat
+                </button>
               </div>
               <div className="flex items-center gap-1">
-                {summary && !summarizing && (
+                {panelTab === "summary" && summary && !summarizing && (
                   <button
                     onClick={() => summarize(true)}
-                    className="p-1 hover:bg-neutral-800 rounded-sm"
+                    className="p-1 hover:bg-neutral-800"
                     title="Regenerate"
                     data-testid="ai-summary-regenerate"
                   >
@@ -256,38 +308,52 @@ export default function FileViewerPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => setSummaryOpen(false)}
-                  className="p-1 hover:bg-neutral-800 rounded-sm"
-                  data-testid="ai-summary-close"
+                  onClick={() => setPanelTab(null)}
+                  className="p-1 hover:bg-neutral-800"
+                  data-testid="ai-panel-close"
                 >
                   <X size={14} />
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-5">
-              {summarizing ? (
-                <div className="space-y-2 animate-pulse" data-testid="ai-summary-loading">
-                  <div className="h-3 bg-neutral-200 w-3/4"></div>
-                  <div className="h-3 bg-neutral-200 w-full"></div>
-                  <div className="h-3 bg-neutral-200 w-5/6"></div>
-                  <div className="h-3 bg-neutral-200 w-2/3 mt-4"></div>
-                  <div className="h-3 bg-neutral-200 w-full"></div>
-                  <p className="text-xs text-neutral-400 font-mono uppercase tracking-[0.2em] pt-3">
-                    Claude is reading the deck…
-                  </p>
-                </div>
-              ) : summary ? (
-                <div data-testid="ai-summary-content">{renderMarkdown(summary)}</div>
-              ) : (
-                <p className="text-sm text-neutral-500">No summary yet.</p>
-              )}
-            </div>
-            <div className="px-4 py-2 border-t border-neutral-200 text-[10px] font-mono uppercase tracking-[0.2em] text-neutral-400">
-              Powered by Claude Sonnet 4.5
+
+            {panelTab === "summary" ? (
+              <div className="flex-1 overflow-y-auto p-5">
+                {summarizing ? (
+                  <div className="space-y-2 animate-pulse" data-testid="ai-summary-loading">
+                    <div className="h-3 bg-neutral-200 w-3/4"></div>
+                    <div className="h-3 bg-neutral-200 w-full"></div>
+                    <div className="h-3 bg-neutral-200 w-5/6"></div>
+                    <div className="h-3 bg-neutral-200 w-2/3 mt-4"></div>
+                    <div className="h-3 bg-neutral-200 w-full"></div>
+                    <p className="text-xs text-neutral-400 font-mono uppercase tracking-[0.2em] pt-3">
+                      Claude is reading the deck…
+                    </p>
+                  </div>
+                ) : summary ? (
+                  <div data-testid="ai-summary-content">{renderMarkdown(summary)}</div>
+                ) : (
+                  <p className="text-sm text-neutral-500">No summary yet.</p>
+                )}
+              </div>
+            ) : (
+              <DeckChat itemId={itemId} />
+            )}
+
+            <div className="px-3 py-1.5 border-t border-neutral-200 text-[10px] font-mono uppercase tracking-[0.2em] text-neutral-400 bg-white">
+              Claude Sonnet 4.5
             </div>
           </aside>
         )}
       </div>
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        itemId={itemId}
+        initialSlug={item.share_slug}
+        initialEnabled={item.share_enabled}
+      />
     </div>
   );
 }

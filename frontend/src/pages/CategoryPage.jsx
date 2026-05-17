@@ -3,6 +3,8 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import api, { API, formatApiError } from "../lib/api";
 import { CATEGORY_BY_ID, FILE_EXT_LABEL } from "../lib/categories";
 import { reloadFolders } from "../components/layout/AppShell";
+import { useWorkspace } from "../context/WorkspaceContext";
+import ShareDialog from "../components/ShareDialog";
 import {
   ChevronRight,
   FolderPlus,
@@ -17,6 +19,7 @@ import {
   ArrowUpRight,
   MoreHorizontal,
   Home,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -48,6 +51,7 @@ export default function CategoryPage() {
   const { categoryId, folderId } = useParams();
   const navigate = useNavigate();
   const category = CATEGORY_BY_ID[categoryId];
+  const { currentId: workspaceId } = useWorkspace();
   const [folders, setFolders] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +59,8 @@ export default function CategoryPage() {
   const [showAddLink, setShowAddLink] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState(null); // {type, id, name}
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [shareTarget, setShareTarget] = useState(null);
   const dragRef = useRef(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
@@ -88,6 +93,17 @@ export default function CategoryPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const handler = () => load();
+    window.addEventListener("workspace-changed", handler);
+    return () => window.removeEventListener("workspace-changed", handler);
+  }, [load]);
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId]);
 
   if (!category) {
     return (
@@ -409,7 +425,7 @@ export default function CategoryPage() {
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {visibleItems.map((it) => (
-                        <ItemCard
+                          <ItemCard
                           key={it.id}
                           item={it}
                           categoryId={categoryId}
@@ -420,6 +436,7 @@ export default function CategoryPage() {
                               name: it.title,
                             })
                           }
+                          onShare={() => setShareTarget(it)}
                         />
                       ))}
                     </div>
@@ -554,11 +571,19 @@ export default function CategoryPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ShareDialog
+        open={!!shareTarget}
+        onOpenChange={(v) => !v && setShareTarget(null)}
+        itemId={shareTarget?.id}
+        initialSlug={shareTarget?.share_slug}
+        initialEnabled={shareTarget?.share_enabled}
+      />
     </div>
   );
 }
 
-function RowMenu({ onDelete }) {
+function RowMenu({ onDelete, onShare }) {
   return (
     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
       <DropdownMenu>
@@ -572,6 +597,11 @@ function RowMenu({ onDelete }) {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" data-testid="row-menu-content">
+          {onShare && (
+            <DropdownMenuItem onClick={onShare} data-testid="row-menu-share">
+              <Share2 size={14} className="mr-2" /> Share
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={onDelete}
             className="text-red-600 focus:text-red-600"
@@ -585,7 +615,7 @@ function RowMenu({ onDelete }) {
   );
 }
 
-function ItemCard({ item, categoryId, onDelete }) {
+function ItemCard({ item, categoryId, onDelete, onShare }) {
   if (item.type === "file") {
     return (
       <div
@@ -601,12 +631,19 @@ function ItemCard({ item, categoryId, onDelete }) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="font-medium truncate">{item.title}</div>
-            <div className="text-xs text-neutral-500 mt-1">
-              {item.original_filename} · {formatSize(item.size)}
+            <div className="text-xs text-neutral-500 mt-1 flex items-center gap-2">
+              <span className="truncate">{item.original_filename}</span>
+              <span>·</span>
+              <span>{formatSize(item.size)}</span>
+              {item.share_enabled && (
+                <span className="text-emerald-700 bg-emerald-50 px-1 text-[9px] font-mono uppercase tracking-[0.1em]">
+                  Shared
+                </span>
+              )}
             </div>
           </div>
         </Link>
-        <RowMenu onDelete={onDelete} />
+        <RowMenu onDelete={onDelete} onShare={onShare} />
       </div>
     );
   }
@@ -649,16 +686,18 @@ function ItemCard({ item, categoryId, onDelete }) {
                 )}
                 <div className="text-[10px] font-mono text-neutral-400 mt-2 truncate">
                   {tryHost(item.url)}
+                  {item.share_enabled && (
+                    <span className="ml-2 text-emerald-700">shared</span>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </a>
-        <RowMenu onDelete={onDelete} />
+        <RowMenu onDelete={onDelete} onShare={onShare} />
       </div>
     );
   }
-  // note
   return (
     <div
       className="group relative border border-neutral-200 bg-white p-4 hard-shadow"
@@ -673,12 +712,17 @@ function ItemCard({ item, categoryId, onDelete }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-medium truncate">{item.title}</div>
-          <div className="text-xs text-neutral-500 mt-1">
-            Note · {new Date(item.updated_at).toLocaleDateString()}
+          <div className="text-xs text-neutral-500 mt-1 flex items-center gap-2">
+            <span>Note · {new Date(item.updated_at).toLocaleDateString()}</span>
+            {item.share_enabled && (
+              <span className="text-emerald-700 bg-emerald-50 px-1 text-[9px] font-mono uppercase tracking-[0.1em]">
+                Shared
+              </span>
+            )}
           </div>
         </div>
       </Link>
-      <RowMenu onDelete={onDelete} />
+      <RowMenu onDelete={onDelete} onShare={onShare} />
     </div>
   );
 }

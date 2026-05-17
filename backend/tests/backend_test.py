@@ -177,9 +177,9 @@ class TestFolders:
         r2 = second_user_session.get(f"{API}/folders", params={"category": "claude-chat"})
         assert r2.status_code == 200
         assert fid not in [f["id"] for f in r2.json()]
-        # User2 cannot delete user1 folder
+        # User2 cannot delete user1 folder (404 or 403 acceptable; workspace membership rejects with 403)
         r3 = second_user_session.delete(f"{API}/folders/{fid}")
-        assert r3.status_code == 404
+        assert r3.status_code in (403, 404)
         # cleanup
         admin_session.delete(f"{API}/folders/{fid}")
 
