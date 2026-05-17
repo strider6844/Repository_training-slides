@@ -38,7 +38,10 @@ Must allow adding folders Notion-style (nested), accept PDF/Word/PPT/web links, 
 - Drag-and-drop multi-file upload zone
 - Breadcrumb navigation + nested sidebar tree (iterative flattened render to avoid babel-plugin recursion crash)
 - File viewer (PDF inline iframe; Office files prompt download)
-- **AI deck summaries** (Claude Sonnet 4.5 via EMERGENT_LLM_KEY) — extracts text from PDF/DOCX/PPTX, generates structured Markdown summary (TL;DR / Key Topics / Main Takeaways / Glossary), result cached on item + regenerate option
+- **AI deck summaries** (Claude Sonnet 4.5 via EMERGENT_LLM_KEY) — extracts text from PDF/DOCX/PPTX, generates structured Markdown summary, cached + regenerate
+- **Team workspaces** — personal + multi-workspace; invite-by-email with active/pending states; roles owner / editor / viewer; workspace switcher in sidebar; settings page with members + danger zone; pending invites auto-activate on register; all folders/items scoped by workspace_id with membership checks
+- **Public share links** per item — `POST /api/items/{id}/share` returns slug; `/s/:slug` public page renders read-only file/note/link with no sidebar; toggleable
+- **Chat with deck** (Claude Sonnet 4.5) — per-user × per-item conversation, history persisted in `deck_chats`, tabbed alongside Summary in file viewer
 - Shadcn Dialog/AlertDialog/DropdownMenu used throughout
 
 ## Test credentials
