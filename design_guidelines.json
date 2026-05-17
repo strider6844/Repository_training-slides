@@ -1,0 +1,156 @@
+{
+  "theme": "light",
+  "archetype": "4_swiss_and_high_contrast",
+  "domain": "Knowledge Management / Training Slides",
+  "emotion_and_vibe": {
+    "primary": "Authoritative, Structured, Intellectual",
+    "description": "A highly functional, pristine canvas designed to get out of the way of the content. Inspired by Swiss poster grids and brutalist efficiency. Sharp borders, high contrast, and tactile feedback without unnecessary gradients or gloss."
+  },
+  "typography": {
+    "rules": {
+      "headings": {
+        "font_family": "Cabinet Grotesk, sans-serif",
+        "weight": "font-bold to font-black",
+        "spacing": "tracking-tight",
+        "line_height": "leading-none",
+        "color": "text-neutral-950"
+      },
+      "body": {
+        "font_family": "IBM Plex Sans, sans-serif",
+        "weight": "font-normal",
+        "spacing": "tracking-normal",
+        "line_height": "leading-relaxed",
+        "color": "text-neutral-800"
+      },
+      "monospace": {
+        "font_family": "JetBrains Mono, monospace",
+        "weight": "font-normal",
+        "size": "text-sm",
+        "color": "text-neutral-700"
+      }
+    },
+    "scale": {
+      "h1": "text-4xl md:text-5xl lg:text-5xl font-black tracking-tighter",
+      "h2": "text-2xl md:text-3xl font-bold tracking-tight",
+      "h3": "text-xl font-semibold",
+      "h4": "text-lg font-medium",
+      "body": "text-base",
+      "small": "text-sm text-neutral-500",
+      "tiny_label": "text-xs font-bold uppercase tracking-[0.2em] text-neutral-400"
+    }
+  },
+  "colors": {
+    "backgrounds": {
+      "main": "bg-white",
+      "sidebar": "bg-[#FAFAFA]",
+      "elevated": "bg-white",
+      "block_quote": "bg-neutral-50",
+      "code_block": "bg-[#0A0A0A]"
+    },
+    "text": {
+      "primary": "text-[#0A0A0A]",
+      "secondary": "text-neutral-600",
+      "muted": "text-neutral-400",
+      "inverse": "text-white"
+    },
+    "borders": {
+      "default": "border-neutral-200",
+      "focus": "border-[#0A0A0A]",
+      "divider": "border-neutral-100"
+    },
+    "accents": {
+      "primary": "bg-[#0A0A0A] text-white hover:bg-neutral-800",
+      "destructive": "bg-red-500 text-white",
+      "highlight": "bg-yellow-200 text-yellow-900"
+    },
+    "category_themes": {
+      "finance_and_accounting": {
+        "accent": "text-emerald-700",
+        "bg_soft": "bg-emerald-50"
+      },
+      "esg_and_sustainability": {
+        "accent": "text-orange-700",
+        "bg_soft": "bg-orange-50"
+      },
+      "claude": {
+        "accent": "text-blue-700",
+        "bg_soft": "bg-blue-50"
+      }
+    }
+  },
+  "spacing_and_layout": {
+    "general": {
+      "generous_padding": "p-8 md:p-12",
+      "container_max_width": "max-w-4xl mx-auto",
+      "border_radius": "rounded-none md:rounded-sm",
+      "gap_standard": "gap-6"
+    },
+    "patterns": {
+      "sidebar": "w-64 or w-72 flex-shrink-0 border-r border-neutral-200 h-screen sticky top-0 overflow-y-auto pt-6",
+      "notion_tree": "pl-4 for each nested level. Left border 1px solid transparent, hover:border-neutral-300, active:border-black active:font-semibold.",
+      "page_content": "pt-24 pb-32 px-6 sm:px-12 md:px-24 w-full flex-grow flex flex-col items-center",
+      "dashboard_grid": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full"
+    }
+  },
+  "components": {
+    "surfaces": {
+      "web_link_card": "border border-neutral-200 bg-white p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-[4px_4px_0px_#0A0A0A]",
+      "file_upload_zone": "border-2 border-dashed border-neutral-300 bg-neutral-50 hover:bg-neutral-100 p-12 text-center flex flex-col items-center justify-center transition-colors cursor-pointer",
+      "document_cover": "h-48 md:h-64 w-full object-cover border-b border-neutral-200"
+    },
+    "notion_blocks": {
+      "paragraph": "my-4 leading-relaxed",
+      "quote": "border-l-4 border-[#0A0A0A] pl-4 py-1 my-6 text-lg italic bg-neutral-50",
+      "code": "bg-[#0A0A0A] text-white p-4 rounded-sm font-mono text-sm my-6 overflow-x-auto",
+      "callout": "flex gap-4 p-4 border border-neutral-200 bg-neutral-50 rounded-sm my-6 items-start",
+      "divider": "my-8 border-t border-dashed border-neutral-300 w-full"
+    },
+    "buttons": {
+      "primary": "bg-[#0A0A0A] text-white px-6 py-2 font-medium transition-transform hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#E5E5E5] active:translate-y-0 active:shadow-none",
+      "secondary": "bg-white text-[#0A0A0A] border border-neutral-300 px-6 py-2 font-medium hover:bg-neutral-50 transition-colors",
+      "icon": "p-2 text-neutral-500 hover:text-[#0A0A0A] hover:bg-neutral-100 transition-colors"
+    },
+    "inputs": {
+      "default": "w-full border-b border-neutral-300 bg-transparent py-2 focus:outline-none focus:border-[#0A0A0A] transition-colors placeholder:text-neutral-400",
+      "search": "flex items-center gap-2 border border-neutral-200 bg-white px-3 py-2 w-full max-w-md focus-within:border-[#0A0A0A] focus-within:ring-1 focus-within:ring-[#0A0A0A] shadow-sm"
+    }
+  },
+  "motion": {
+    "hover": "transition-all duration-200 ease-in-out",
+    "page_load": "animate-in fade-in slide-in-from-bottom-4 duration-500",
+    "dropdown": "animate-in fade-in zoom-in-95 duration-150"
+  },
+  "media": {
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width: 1.5. Clean, technical, unadorned."
+    },
+    "cover_images": [
+      {
+        "category": "Finance and Accounting",
+        "url": "https://static.prod-images.emergentagent.com/jobs/051d676b-a320-4147-a337-b8bba2d73213/images/878f7e636a5562e7b097b372e95cceeb2d6c479bed189ace548ef332ecfe05c3.png",
+        "description": "Abstract minimalist swiss design pattern in pale sage green. Use as cover image for the Finance top-level section."
+      },
+      {
+        "category": "ESG and Sustainability",
+        "url": "https://static.prod-images.emergentagent.com/jobs/051d676b-a320-4147-a337-b8bba2d73213/images/044d036534d78c033c958e052ffbbe0dbd77fdf707d9fb8b68e452315f7f0f8a.png",
+        "description": "Earthy organic terracotta abstract texture. Use as cover image for the ESG top-level section."
+      },
+      {
+        "category": "Claude (Chat, Co-work, Code)",
+        "url": "https://static.prod-images.emergentagent.com/jobs/051d676b-a320-4147-a337-b8bba2d73213/images/5e0fd5f3eda9e656b0f7efd95e7bc945bc63129f6120a0770ab8f69546751234.png",
+        "description": "Dark moody digital waves with electric blue. Use as cover image for the Claude section."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Install `@fontsource/cabinet-grotesk` (or equivalent) and `@fontsource/ibm-plex-sans` and set them up in Tailwind config.",
+    "The layout MUST feature a fixed left sidebar for the nested folder/file tree (like Notion) and a scrollable main content area.",
+    "Implement the Block Editor using TipTap or a highly customized rendering map if building manually. Ensure each block type (quote, code, list, callout) has distinct stylistic separation per the 'notion_blocks' guidelines.",
+    "Use a minimalist, 'Tactical/Swiss' layout. Avoid round bubbly components. Stick to `rounded-none` or `rounded-sm`. Do not use generic drop shadows; use sharp, hard offset shadows (e.g., `4px 4px 0px #0A0A0A`) for hover states on link cards.",
+    "Top-level categories MUST use the provided cover_images as full-bleed banners at the top of their respective index pages (h-64 object-cover).",
+    "All interactive elements (buttons, tree items, form inputs, block triggers) MUST include a kebab-case `data-testid` attribute (e.g. `data-testid=\"sidebar-finance-link\"`).",
+    "File uploads should feature a large, dotted drag-and-drop zone that visually reacts on drag-enter.",
+    "Avoid generic blue for the primary color. Default to pure Black (#0A0A0A) for primary actions and active states."
+  ]
+}
