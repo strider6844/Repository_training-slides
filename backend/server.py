@@ -325,16 +325,24 @@ async def update_folder(folder_id: str, payload: FolderUpdate, user: dict = Depe
 
 @api_router.delete("/folders/{folder_id}")
 async def delete_folder(folder_id: str, user: dict = Depends(get_current_user)):
-    # Recursively delete child folders and items
-    async def collect_descendants(fid: str, acc: set):
-        acc.add(fid)
-        children = await db.folders.find({"parent_id": fid, "owner_id": user["id"]}, {"id": 1, "_id": 0}).to_list(1000)
-        for c in children:
-            await collect_descendants(c["id"], acc)
-    to_delete = set()
-    await collect_descendants(folder_id, to_delete)
-    if not to_delete:
+    # Verify ownership before doing anything
+    root = await db.folders.find_one({"id": folder_id, "owner_id": user["id"]}, {"_id": 0, "id": 1})
+    if not root:
         raise HTTPException(status_code=404, detail="Folder not found")
+    # Iteratively collect descendants (BFS to avoid recursion limits)
+    to_delete = {folder_id}
+    frontier = [folder_id]
+    while frontier:
+        children = await db.folders.find(
+            {"parent_id": {"$in": frontier}, "owner_id": user["id"]},
+            {"id": 1, "_id": 0},
+        ).to_list(5000)
+        next_frontier = []
+        for c in children:
+            if c["id"] not in to_delete:
+                to_delete.add(c["id"])
+                next_frontier.append(c["id"])
+        frontier = next_frontier
     # Mark items as deleted
     await db.items.update_many(
         {"folder_id": {"$in": list(to_delete)}, "owner_id": user["id"]},
