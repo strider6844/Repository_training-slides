@@ -31,6 +31,10 @@ from auth import (
 from storage import init_storage, put_object, get_object
 from link_preview import fetch_link_preview
 from extract_text import extract_text
+from anthropic import AsyncAnthropic
+
+# Model used for both AI summary and deck chat. Bump in one place.
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -851,15 +855,9 @@ async def summarize_item(item_id: str, user: dict = Depends(get_current_user)):
         )
     text = text[:40000]
 
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-    except Exception as e:
-        logger.error(f"emergentintegrations import failed: {e}")
-        raise HTTPException(status_code=500, detail="LLM library not available")
-
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="LLM key not configured")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
 
     system = (
         "You are a senior training-content analyst. Summarise the provided slide deck / "
@@ -871,13 +869,21 @@ async def summarize_item(item_id: str, user: dict = Depends(get_current_user)):
         "Be precise. Do not invent facts. Quote sparingly."
     )
     try:
-        chat = LlmChat(api_key=api_key, session_id=f"summary-{item_id}", system_message=system).with_model(
-            "anthropic", "claude-sonnet-4-5-20250929"
+        client = AsyncAnthropic(api_key=api_key)
+        response = await client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=2048,
+            system=system,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Title: {item.get('title')}\n"
+                    f"Filename: {item.get('original_filename')}\n\n"
+                    f"--- Document text ---\n{text}"
+                ),
+            }],
         )
-        msg = UserMessage(
-            text=f"Title: {item.get('title')}\nFilename: {item.get('original_filename')}\n\n--- Document text ---\n{text}"
-        )
-        summary = await chat.send_message(msg)
+        summary = "".join(b.text for b in response.content if getattr(b, "type", None) == "text")
     except Exception as e:
         logger.error(f"LLM call failed: {e}")
         raise HTTPException(status_code=500, detail="AI summary failed. Please try again.")
@@ -935,15 +941,9 @@ async def post_chat(item_id: str, payload: ChatRequest, user: dict = Depends(get
     )
     history = chat_doc["messages"] if chat_doc else []
 
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-    except Exception as e:
-        logger.error(f"emergentintegrations import failed: {e}")
-        raise HTTPException(status_code=500, detail="LLM library not available")
-
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="LLM key not configured")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
 
     system = (
         "You are an expert tutor and analyst answering questions about a specific training document. "
@@ -952,21 +952,26 @@ async def post_chat(item_id: str, payload: ChatRequest, user: dict = Depends(get
         f"--- Document: {item.get('title')} ({item.get('original_filename')}) ---\n{text}\n--- End document ---"
     )
 
-    # Use a session_id keyed by item+user — server keeps internal history; we also persist our own
-    session_id = f"chat-{item_id}-{user['id']}"
+    # Replay the last few turns directly via the Anthropic messages array.
+    # No server-side session state — every request is self-contained.
+    recent_turns = [
+        {"role": m["role"], "content": m["content"]}
+        for m in history[-10:]
+        if m.get("role") in ("user", "assistant")
+    ]
+    api_messages = recent_turns + [{"role": "user", "content": payload.message}]
+
     try:
-        chat = LlmChat(api_key=api_key, session_id=session_id, system_message=system).with_model(
-            "anthropic", "claude-sonnet-4-5-20250929"
+        client = AsyncAnthropic(api_key=api_key)
+        completion = await client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=1024,
+            system=system,
+            messages=api_messages,
         )
-        # Replay last few turns so each request is self-contained (emergentintegrations may not persist)
-        recent = history[-10:]
-        combined = ""
-        for m in recent:
-            tag = "User" if m["role"] == "user" else "Assistant"
-            combined += f"{tag}: {m['content']}\n\n"
-        combined += f"User: {payload.message}\n\nAssistant:"
-        msg = UserMessage(text=combined)
-        response = await chat.send_message(msg)
+        response = "".join(
+            b.text for b in completion.content if getattr(b, "type", None) == "text"
+        )
     except Exception as e:
         logger.error(f"Chat LLM call failed: {e}")
         raise HTTPException(status_code=500, detail="Chat failed. Please try again.")

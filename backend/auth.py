@@ -48,14 +48,31 @@ def _cookie_secure() -> bool:
     return os.environ.get("COOKIE_SECURE", "true").lower() not in ("false", "0", "no")
 
 
+def _cookie_samesite() -> str:
+    # When frontend and backend share a registrable domain ("lax" works).
+    # When they don't (e.g. vercel.app frontend + onrender.com backend), the
+    # browser drops cookies on cross-site requests unless SameSite=None + Secure.
+    # Default to "lax" for the simple case; production cross-origin deployments
+    # should set COOKIE_SAMESITE=none.
+    val = os.environ.get("COOKIE_SAMESITE", "lax").lower()
+    if val not in ("lax", "strict", "none"):
+        val = "lax"
+    return val
+
+
 def set_auth_cookies(response, access_token: str, refresh_token: str):
     secure = _cookie_secure()
+    samesite = _cookie_samesite()
+    # Browsers reject SameSite=None without Secure — enforce it here so a
+    # misconfigured env doesn't silently drop every cookie.
+    if samesite == "none" and not secure:
+        raise RuntimeError("COOKIE_SAMESITE=none requires COOKIE_SECURE=true")
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
         secure=secure,
-        samesite="lax",
+        samesite=samesite,
         max_age=ACCESS_TOKEN_MINUTES * 60,
         path="/",
     )
@@ -64,7 +81,7 @@ def set_auth_cookies(response, access_token: str, refresh_token: str):
         value=refresh_token,
         httponly=True,
         secure=secure,
-        samesite="lax",
+        samesite=samesite,
         max_age=REFRESH_TOKEN_DAYS * 86400,
         path="/",
     )

@@ -1,0 +1,56 @@
+# Render Blueprint — provisions the backend web service when you "New +" -> "Blueprint"
+# and point at this repo. Env vars marked `sync: false` must be filled in via the
+# Render dashboard after first deploy (Render doesn't store secrets in git).
+#
+# Free tier note: the backend sleeps after 15 min of inactivity. First request
+# after wake takes ~30s. Set up a cron-style ping (e.g. cron-job.org) if you
+# need it warm during business hours.
+
+services:
+  - type: web
+    name: slidevault-backend
+    runtime: python
+    plan: free
+    region: singapore           # change if you'd prefer oregon / frankfurt / etc.
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/
+    envVars:
+      # Filled at deploy-time by Render's $PORT.
+      - key: PYTHON_VERSION
+        value: "3.12"
+
+      # === Set these manually in the Render dashboard after first deploy ===
+      - key: MONGO_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      # CORS_ORIGINS must include your Vercel frontend URL once known, e.g.
+      # https://slidevault.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+
+      # === Generated automatically on first deploy ===
+      - key: JWT_SECRET
+        generateValue: true
+
+      # === Fixed for any cross-origin Vercel + Render deployment ===
+      - key: DB_NAME
+        value: training_slides
+      - key: APP_NAME
+        value: training-slides
+      - key: STORAGE_BACKEND
+        value: r2
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: none
